@@ -1,4 +1,4 @@
-name: Create EC2 Instance
+name: Create New EC2 Instance
 
 on:
   push:
@@ -20,65 +20,38 @@ jobs:
         aws-secret-access-key: ${{ secrets.AWS_SECRET_ACCESS_KEY }}
         aws-region: us-east-1  # Change to your desired region
 
-    - name: Create or Use Default VPC
-      id: vpc_setup
+    - name: Create New VPC
+      id: create_vpc
       run: |
-        # Check if default VPC exists
-        DEFAULT_VPC_ID=$(aws ec2 describe-vpcs --query "Vpcs[?IsDefault==true].VpcId" --output text)
-        
-        if [ -z "$DEFAULT_VPC_ID" ]; then
-          echo "Default VPC not found. Creating a new VPC..."
-          
-          # Create a new VPC
-          VPC_ID=$(aws ec2 create-vpc --cidr-block 10.0.0.0/16 --query 'Vpc.VpcId' --output text)
-          aws ec2 modify-vpc-attribute --vpc-id $VPC_ID --enable-dns-support '{"Value":true}'
-          aws ec2 modify-vpc-attribute --vpc-id $VPC_ID --enable-dns-hostnames '{"Value":true}'
-          
-          # Create a new subnet
-          SUBNET_ID=$(aws ec2 create-subnet --vpc-id $VPC_ID --cidr-block 10.0.1.0/24 --query 'Subnet.SubnetId' --output text)
-          
-          # Create a new security group
-          SECURITY_GROUP_ID=$(aws ec2 create-security-group --group-name my-security-group --description "My security group" --vpc-id $VPC_ID --query 'GroupId' --output text)
-          aws ec2 authorize-security-group-ingress --group-id $SECURITY_GROUP_ID --protocol tcp --port 22 --cidr 0.0.0.0/0
-          aws ec2 authorize-security-group-ingress --group-id $SECURITY_GROUP_ID --protocol tcp --port 80 --cidr 0.0.0.0/0
-        else
-          echo "Using default VPC..."
-          VPC_ID=$DEFAULT_VPC_ID
-          
-          # Fetch the default subnet ID
-          SUBNET_ID=$(aws ec2 describe-subnets --filters "Name=vpc-id,Values=$VPC_ID" --query "Subnets[0].SubnetId" --output text)
-          
-          # Fetch the default security group ID
-          SECURITY_GROUP_ID=$(aws ec2 describe-security-groups --filters "Name=vpc-id,Values=$VPC_ID" --query "SecurityGroups[0].GroupId" --output text)
-        fi
-
+        VPC_ID=$(aws ec2 create-vpc --cidr-block 10.0.0.0/16 --query 'Vpc.VpcId' --output text)
+        aws ec2 modify-vpc-attribute --vpc-id $VPC_ID --enable-dns-support '{"Value":true}'
+        aws ec2 modify-vpc-attribute --vpc-id $VPC_ID --enable-dns-hostnames '{"Value":true}'
         echo "VPC_ID=$VPC_ID" >> $GITHUB_ENV
+
+    - name: Create New Subnet
+      id: create_subnet
+      run: |
+        SUBNET_ID=$(aws ec2 create-subnet --vpc-id ${{ env.VPC_ID }} --cidr-block 10.0.1.0/24 --query 'Subnet.SubnetId' --output text)
         echo "SUBNET_ID=$SUBNET_ID" >> $GITHUB_ENV
+
+    - name: Create New Security Group
+      id: create_security_group
+      run: |
+        SECURITY_GROUP_ID=$(aws ec2 create-security-group --group-name my-security-group --description "My security group" --vpc-id ${{ env.VPC_ID }} --query 'GroupId' --output text)
+        aws ec2 authorize-security-group-ingress --group-id $SECURITY_GROUP_ID --protocol tcp --port 22 --cidr 0.0.0.0/0
+        aws ec2 authorize-security-group-ingress --group-id $SECURITY_GROUP_ID --protocol tcp --port 80 --cidr 0.0.0.0/0
         echo "SECURITY_GROUP_ID=$SECURITY_GROUP_ID" >> $GITHUB_ENV
 
-    - name: Create Key Pair if Needed
-      id: keypair_setup
+    - name: Create New Key Pair
+      id: create_key_pair
       run: |
         KEY_NAME=my-key-pair
-        aws ec2 describe-key-pairs --key-names $KEY_NAME 2>/dev/null || \
-        (aws ec2 create-key-pair --key-name $KEY_NAME --query 'KeyMaterial' --output text > my-key-pair.pem && chmod 400 my-key-pair.pem)
-        
-        if [ -f my-key-pair.pem ]; then
-          echo "Key pair created and saved as my-key-pair.pem"
-          echo "KEY_PAIR_CREATED=true" >> $GITHUB_ENV
-        else
-          echo "Key pair already exists"
-          echo "KEY_PAIR_CREATED=false" >> $GITHUB_ENV
-        fi
-
-    - name: Upload Key Pair to Artifacts (if created)
-      if: env.KEY_PAIR_CREATED == 'true'
-      uses: actions/upload-artifact@v3
-      with:
-        name: my-key-pair.pem
-        path: my-key-pair.pem
+        aws ec2 create-key-pair --key-name $KEY_NAME --query 'KeyMaterial' --output text > my-key-pair.pem
+        chmod 400 my-key-pair.pem
+        echo "KEY_NAME=$KEY_NAME" >> $GITHUB_ENV
 
     - name: Launch EC2 Instance
+      id: launch_instance
       run: |
         # Fetch the latest Amazon Linux 2 AMI ID
         LATEST_AMI_ID=$(aws ec2 describe-images --owners amazon --filters "Name=name,Values=amzn2-ami-hvm-*-x86_64-gp2" --query "Images | sort_by(@, &CreationDate)[-1].ImageId" --output text)
@@ -89,7 +62,7 @@ jobs:
         fi
         
         # Launch the EC2 instance
-        INSTANCE_ID=$(aws ec2 run-instances --image-id $LATEST_AMI_ID --count 1 --instance-type t2.micro --key-name my-key-pair --security-group-ids ${{ env.SECURITY_GROUP_ID }} --subnet-id ${{ env.SUBNET_ID }} --query 'Instances[0].InstanceId' --output text)
+        INSTANCE_ID=$(aws ec2 run-instances --image-id $LATEST_AMI_ID --count 1 --instance-type t2.micro --key-name ${{ env.KEY_NAME }} --security-group-ids ${{ env.SECURITY_GROUP_ID }} --subnet-id ${{ env.SUBNET_ID }} --query 'Instances[0].InstanceId' --output text)
         
         if [ -z "$INSTANCE_ID" ]; then
           echo "Failed to launch EC2 instance"
@@ -100,7 +73,7 @@ jobs:
 
         # Tag the instance with the name "riyaz"
         aws ec2 create-tags --resources $INSTANCE_ID --tags Key=Name,Value=riyaz
-        
+
     - name: Wait for EC2 Instance to be running
       run: |
         aws ec2 wait instance-running --instance-ids $INSTANCE_ID
