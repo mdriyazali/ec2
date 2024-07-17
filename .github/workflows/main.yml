@@ -25,17 +25,43 @@ jobs:
         # Fetch the default VPC ID
         DEFAULT_VPC_ID=$(aws ec2 describe-vpcs --query "Vpcs[?IsDefault==true].VpcId" --output text)
         
+        if [ -z "$DEFAULT_VPC_ID" ]; then
+          echo "Default VPC not found"
+          exit 1
+        fi
+        
         # Fetch the default subnet ID
         DEFAULT_SUBNET_ID=$(aws ec2 describe-subnets --filters "Name=vpc-id,Values=$DEFAULT_VPC_ID" --query "Subnets[0].SubnetId" --output text)
+        
+        if [ -z "$DEFAULT_SUBNET_ID" ]; then
+          echo "Default subnet not found"
+          exit 1
+        fi
         
         # Fetch the default security group ID
         DEFAULT_SECURITY_GROUP_ID=$(aws ec2 describe-security-groups --filters "Name=vpc-id,Values=$DEFAULT_VPC_ID" --query "SecurityGroups[0].GroupId" --output text)
         
+        if [ -z "$DEFAULT_SECURITY_GROUP_ID" ]; then
+          echo "Default security group not found"
+          exit 1
+        fi
+        
         # Fetch the latest Amazon Linux 2 AMI ID
         LATEST_AMI_ID=$(aws ec2 describe-images --owners amazon --filters "Name=name,Values=amzn2-ami-hvm-*-x86_64-gp2" --query "Images | sort_by(@, &CreationDate)[-1].ImageId" --output text)
         
+        if [ -z "$LATEST_AMI_ID" ]; then
+          echo "Latest AMI ID not found"
+          exit 1
+        fi
+        
         # Launch the EC2 instance
         INSTANCE_ID=$(aws ec2 run-instances --image-id $LATEST_AMI_ID --count 1 --instance-type t2.micro --security-group-ids $DEFAULT_SECURITY_GROUP_ID --subnet-id $DEFAULT_SUBNET_ID --query 'Instances[0].InstanceId' --output text)
+        
+        if [ -z "$INSTANCE_ID" ]; then
+          echo "Failed to launch EC2 instance"
+          exit 1
+        fi
+        
         echo "EC2 Instance ID: $INSTANCE_ID"
         
     - name: Wait for EC2 Instance to be running
