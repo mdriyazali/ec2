@@ -20,11 +20,24 @@ jobs:
         aws-secret-access-key: ${{ secrets.AWS_SECRET_ACCESS_KEY }}
         aws-region: us-east-1  # Change to your desired region
 
-    - name: Launch EC2 Instance
+    - name: Launch EC2 Instance with Default Parameters
       run: |
-        INSTANCE_ID=$(aws ec2 run-instances --image-id ami-0b72821e2f351e396 --count 1 --instance-type t2.micro --key-name my-key-pair --security-group-ids sg-0bb1c23b6eEXAMPLE --subnet-id subnet-6e7f829e --query 'Instances[0].InstanceId' --output text)
+        # Fetch the default VPC ID
+        DEFAULT_VPC_ID=$(aws ec2 describe-vpcs --query "Vpcs[?IsDefault==true].VpcId" --output text)
+        
+        # Fetch the default subnet ID
+        DEFAULT_SUBNET_ID=$(aws ec2 describe-subnets --filters "Name=vpc-id,Values=$DEFAULT_VPC_ID" --query "Subnets[0].SubnetId" --output text)
+        
+        # Fetch the default security group ID
+        DEFAULT_SECURITY_GROUP_ID=$(aws ec2 describe-security-groups --filters "Name=vpc-id,Values=$DEFAULT_VPC_ID" --query "SecurityGroups[0].GroupId" --output text)
+        
+        # Fetch the latest Amazon Linux 2 AMI ID
+        LATEST_AMI_ID=$(aws ec2 describe-images --owners amazon --filters "Name=name,Values=amzn2-ami-hvm-*-x86_64-gp2" --query "Images | sort_by(@, &CreationDate)[-1].ImageId" --output text)
+        
+        # Launch the EC2 instance
+        INSTANCE_ID=$(aws ec2 run-instances --image-id $LATEST_AMI_ID --count 1 --instance-type t2.micro --security-group-ids $DEFAULT_SECURITY_GROUP_ID --subnet-id $DEFAULT_SUBNET_ID --query 'Instances[0].InstanceId' --output text)
         echo "EC2 Instance ID: $INSTANCE_ID"
-
+        
     - name: Wait for EC2 Instance to be running
       run: |
         aws ec2 wait instance-running --instance-ids $INSTANCE_ID
@@ -32,4 +45,4 @@ jobs:
 
     - name: Describe EC2 Instance
       run: |
-        aws ec2 describe-instances --instance-ids $INSTANCE_ID
+        aws ec2 describe-instances --instance-ids $INSTANCE_ID --query 'Reservations[0].Instances[0].{ID:InstanceId,Type:InstanceType,State:State.Name,PublicIP:PublicIpAddress,PrivateIP:PrivateIpAddress,LaunchTime:LaunchTime}' --output table
