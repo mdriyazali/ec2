@@ -72,7 +72,7 @@ jobs:
         echo "EC2 Instance ID: $INSTANCE_ID"
 
         # Tag the instance with the name "riyaz"
-        aws ec2 create-tags --resources $INSTANCE_ID --tags Key=Name,Value=riyaz
+        aws ec2 create-tags --resources $INSTANCE_ID --tags Key=Name,Value=khan
 
     - name: Wait for EC2 Instance to be running
       run: |
