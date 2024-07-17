@@ -75,7 +75,21 @@ jobs:
 
     - name: Wait for EC2 Instance to be running
       run: |
-        aws ec2 wait instance-running --instance-ids $INSTANCE_ID
+        # Attempt to wait for up to 5 minutes (300 seconds) for the instance to be running
+        retries=0
+        while [ $retries -lt 5 ]; do
+          aws ec2 wait instance-running --instance-ids $INSTANCE_ID && break
+          retries=$((retries + 1))
+          sleep 60  # Wait for 60 seconds before retrying
+        done
+
+        # Check if the instance is now running
+        instance_state=$(aws ec2 describe-instances --instance-ids $INSTANCE_ID --query 'Reservations[0].Instances[0].State.Name' --output text)
+        if [ "$instance_state" != "running" ]; then
+          echo "Instance $INSTANCE_ID failed to reach running state after retries."
+          exit 1
+        fi
+
         echo "EC2 Instance $INSTANCE_ID is running"
 
     - name: Describe EC2 Instance
