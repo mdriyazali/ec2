@@ -45,9 +45,9 @@ jobs:
     - name: Create New Key Pair
       id: create_key_pair
       run: |
-        KEY_NAME=my-key-pair
-        aws ec2 create-key-pair --key-name $KEY_NAME --query 'KeyMaterial' --output text > my-key-pair.pem
-        chmod 400 my-key-pair.pem
+        KEY_NAME=my-key-pair-riyaz
+        aws ec2 create-key-pair --key-name $KEY_NAME --query 'KeyMaterial' --output text > my-key-pair-riyaz.pem
+        chmod 400 my-key-pair-riyaz.pem
         echo "KEY_NAME=$KEY_NAME" >> $GITHUB_ENV
 
     - name: Launch EC2 Instance
