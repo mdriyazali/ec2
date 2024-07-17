@@ -45,9 +45,9 @@ jobs:
     - name: Create New Key Pair
       id: create_key_pair
       run: |
-        KEY_NAME=my-key-pair-riyaz
-        aws ec2 create-key-pair --key-name $KEY_NAME --query 'KeyMaterial' --output text > my-key-pair-riyaz.pem
-        chmod 400 my-key-pair-riyaz.pem
+        KEY_NAME=my-key-pair-riyazz
+        aws ec2 create-key-pair --key-name $KEY_NAME --query 'KeyMaterial' --output text > my-key-pair-riyazz.pem
+        chmod 400 my-key-pair-riyazz.pem
         echo "KEY_NAME=$KEY_NAME" >> $GITHUB_ENV
 
     - name: Launch EC2 Instance
@@ -72,7 +72,7 @@ jobs:
         echo "EC2 Instance ID: $INSTANCE_ID"
 
         # Tag the instance with the name "riyaz"
-        aws ec2 create-tags --resources $INSTANCE_ID --tags Key=Name,Value=khan
+        aws ec2 create-tags --resources $INSTANCE_ID --tags Key=Name,Value=khann
 
     - name: Wait for EC2 Instance to be running
       run: |
